@@ -1,0 +1,13 @@
+### Sophia Chen, Berke Kara
+
+**Dataset:** We will be using the Austin Police Department's Crime Reports dataset, which contains records of incidents and crimes that the Austin Police Department has responded to and documented. Each row in the dataset represents a unique crime report, detailing various aspects of the incident, such as the date, location, type of crime, and status of the case. Our primary variables of interest include crime type, location (district), and date/time of occurrence. By analyzing these variables, we can identify crime trends across different areas and time periods.
+
+**Why:** In news, we hear a lot about how often crime is reported in Austin. Our motivation is to using the data we analyzed to find the districts that have the lowest crime so that when its time for us to look for new apartments, we can move to the district with the lowest crime, and once and for all understand if Austin is really unsafe as media makes it out to be.
+
+**RQ:** Which district has the least crime, including family violence, and how does time of year, location type affect the frequency of criminal activity?
+
+**Outcome Variable:** Number of hours to took to Report
+
+**Numerical Variables:** Occured Time, Occured Date, Report Time
+
+**Categorical Variables:** Highest Offense Description, Family Violence, Location Type, Council District
