@@ -1,0 +1,106 @@
+---
+title: "Austin Crime Data EDA Report"
+output: html_document
+date: "2025-02-28"
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      eval = TRUE,
+                      warning = TRUE,
+                      message = FALSE,
+                      fig.align = "center",
+                      R.options = list(max.print=50))
+```
+
+```{r message=FALSE, warning=FALSE}
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(readr)
+atxCrime <- read_csv("Crime_Reports_20250228.csv")
+atxCrime
+```
+
+### 1. Dataset
+
+Which dataset(s) are you exploring? Include the link to your dataset and quickly describe what information it contains: How many rows/columns?
+
+```{r}
+# taking a look at the atxCrime data set, and finding the number of rows and columns within the dataset.
+head(atxCrime)
+dim(atxCrime)
+```
+
+**We are exploring the [Austin Crime Reports](https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data) data set which reports crime incidents that the Austin Police Department responded to and documented, from January 1st, 2003 to February 22nd, 2025. Each row in the data set represents a unique crime report, detailing various aspects of the incident, such as the highest offense, date, location type, and date/time of occurrence. The data set has 2532115 rows, indicating the number of unique crime reports, and 6 columns, indicating the 6 variables we are interested in exploring - Highest Offense Description, Family Violence, Location Type, Council District, Occurred Date/Time, and Report Time/Date**.
+
+2\. Research Question
+
+Write a research question involving specific variables to guide your Exploratory Data Analysis.
+
+**We will explore this data set to answer the following research questions:**
+
+1.  **Which district has the least and most crime of any type, and which crime type is the most common in each district, including family violence? (Sophia)**
+2.  **How does time of year, crime type, and location type affect the frequency of criminal activity and the number of hours it took to report the crime? (Berke)**
+
+### 3. Wrangling
+
+Organize your data by using single-word names for all variables, filter your data on some conditions (if needed), and create new variables (if needed).
+
+```{r}
+newCrime<-atxCrime|>
+  select(Offense = `Highest Offense Description`, 
+         Date = `Occurred Date Time`,
+         Location = `Location Type`,
+         District = `Council District`,
+         Family = `Family Violence`,
+         Report = `Report Date Time`
+         )|>
+  mutate(Date = mdy_hm(Date))|>
+  mutate(Mins = difftime(mdy_hm(Report),Date, units = "mins"))|>
+  #mutate(Hours = difftime(mdy_hm(Report), mdy_hm(Date), units = "hours"))
+  mutate(difference = case_when(
+    Mins == 0 ~ "Zero Minutes",
+    Mins < 100 & Mins>0  ~ "Under 100 Minutes",
+    Mins > 100 ~ "Over 100 Minutes"
+  ))|>
+  filter(year(Date)>=2024)
+newCrime
+```
+
+### 4. Explore 1 Numeric Variable
+
+Include a visualization and summary statistics.
+
+```{r}
+# distribution of the time it takes for a crime to be reported after it occurs.
+newCrime|>
+  group_by(hour(Date))|>
+  summarize(freq = n())|>
+  ggplot()+
+  geom_histogram(aes(x = freq), binwidth = 30)
+
+newCrime|>
+  filter(!is.na(difference))|>
+  ggplot()+
+  geom_bar(aes(x = difference))
+#nrow(filter(newCrime, is.na(difference)))
+```
+
+### 5. Explore 1 Categorical Variable
+
+Include a visualization and summary statistics.
+
+```{r}
+newCrime|>
+  group_by(Location)|>
+  summarize(freq = n())|>
+  slice_max(n = 10, freq)|>
+  ggplot()+
+newCrime|>
+  group_by(Offense)|>
+  summarize(freq = n())|>
+  slice_max(n = 10, freq)
+```
+
+**Questions**: Let us know if you have any questions about how to manipulate your dataset(s)!
