@@ -1,0 +1,154 @@
+---
+title: "atxCrimeEDAReport"
+author: "Sophia Chen, Berke Kara"
+date: "2025-03-24"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      eval = TRUE,
+                      warning = TRUE,
+                      message = FALSE,
+                      fig.align = "center",
+                      R.options = list(max.print=50))
+```
+
+## An Analysis of Austin Crime Reports
+
+By: Sophia Chen, Berke Kara
+
+### Introduction
+
+We will be using the [Austin Police Department's Crime Reports](https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data) data set, which contains records of incidents and crimes that the Austin Police Department has responded to and documented. Each row in the data set represents a unique crime report, detailing various aspects of the incident, such as the date, location, type of crime, and status of the case. Our primary variables of interest include crime type, location (type and district), date/time of occurrence and report, and family violence. By analyzing these variables, we can identify crime trends across different areas in Austin in 2024.
+
+[![https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/](https://cdn-gnflf.nitrocdn.com/oLzuXrOSBZcEOcWEWWyWBqotmYtrWuwi/assets/images/optimized/rev-365f3a7/www.deepsentinel.com/wp-content/uploads/2022/10/Safest-Neighborhoods-in-Austin-Map-1024x640.jpg){width="426"}](https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/)
+
+-   previous study or news article; describe how it ties with project; Why is this topic important for you to investigate? What are your motivations
+
+**We will explore this data set to answer the following research questions:**
+
+1.  Which Austin region has the most crime of any type, and which crime type is the most common in each region, including family violence? (Sophia)
+2.  How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
+
+-   Try to anticipate what you will learn by conducting this analysis: What trends or relationships do\
+    you expect?
+
+### Methods
+
+```{r message=FALSE, warning=FALSE}
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(readr)
+atxCrime <- read_csv("Crime_Reports_20250228.csv")
+dim(atxCrime)
+```
+
+```{r}
+# organizes data by using single-word names for all variables, changes Date and Report columns to appropriate (lubridate) formats in R, and filters the dataset to only include data from 2024.
+clean_Crime <- atxCrime|>
+  select(Offense = `Highest Offense Description`, 
+         Occurred = `Occurred Date Time`,
+         Location = `Location Type`,
+         District = `Council District`,
+         Family = `Family Violence`,
+         Report = `Report Date Time`,
+         )|>
+  mutate(Occurred = mdy_hm(Occurred),
+         Report = mdy_hm(Report),
+         Difference = difftime(Report, Occurred, units = "hours"),
+         Region = case_when(
+           District %in% c(4, 6, 7) ~ "North Austin",
+           District %in% c(2, 5, 8) ~ "South Austin",
+           District %in% c(9) ~ "Central Austin",
+           District %in% c(1, 3) ~ "East Austin"))|>
+  filter(year(Occurred) == 2024,
+         Offense %in% c("FAMILY DISTURBANCE", "BURGLARY OF VEHICLE", "THEFT", "HARASSMENT"),
+         Location %in% c("RESIDENCE / HOME", "PARKING /DROP LOT/ GARAGE", "HWY / ROAD / ALLEY/ STREET/ SIDEWALK", "HOTEL / MOTEL / ETC."),
+         !is.na(c(District)),
+         District != 10)
+newCrime
+```
+
+**Before wrangling, the data set had 2,532,115 rows and 6 columns. After wrangling, the data set has 16,523 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, and the Location categories with the highest count of crime in the data set.**
+
+**The data set is tidy because each column represents one variable and each row represents one observation/crime report.**
+
+-   how many rows/columns did you start/end with; reason why number of rows/columns may be different before/after wrangling
+
+-   justify if data is tidy
+
+### Results
+
+-   make a visualization exploring the distribution of each variable in the research question and report summary stats
+
+    -   Which Austin region has the most crime of any type, and which crime type is the most common in each region, including family violence? (Sophia)
+
+    -   How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
+
+        -   sophia: region, type, family violence
+
+        -   berke: time of day/year, type, location, difference
+
+-   at least 2 visualizations representing relationships between 2 variables reporting the\
+    appropriate summary statistics. You could also do some visualizations with 3 variables if you’d like. If a team project, each member creates 2 multivariate visualizations, with the appropriate statistics
+
+```{r}
+# Creates a bar graph of the number of crime reports per Austin region in 2024.
+ggplot(data = clean_Crime)+
+  geom_bar(aes(x = Region))+
+  labs(
+    title = "Figure 1: Amount of Crime per Austin Region in 2024",
+    x = "Austin Region",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )+
+  scale_y_continuous(breaks = seq(0,6000,500))
+```
+
+```{r}
+ggplot(data = clean_Crime)+
+  geom_bar(aes(x = Offense, fill = Offense))+
+  labs(
+    title = "Figure 2: Frequency of Crime Reports by Offense Type and Region",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )+
+  facet_wrap(~Region)+
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+```
+
+-   Appropriate titles and labels for each visualization and make sure summary statistics are\
+    reported with appropriate units. Note: It might be a good idea to number your visualizations to\
+    reference them in the Discussion
+
+-   sentences interpreting each visualization with any trend/relationships and referring to\
+    appropriate summary statistics
+
+### Discussion
+
+-   what did you learn from your data?
+
+-   Answer your research question(s) in context, citing visualizations and summary statistics
+
+-   Did the data match what you expected? Anything surprising? Anything you are curious about
+
+-   If you were going to share your findings with the City of Austin (and you might actually do that!),\
+    what would be the main takeaway from your exploratory data analysis
+
+-   Anything you would like to share about the state of the dataset (e.g., inconsistency in coding for\
+    categories, typos, missing values...)
+
+### Reflection, Acknowledgements, and References
+
+-   What aspect of this part of the project was the most challenging?
+
+-   What have you learned from the process itself?
+
+-   Include acknowledgements for any help received: who helped you with the project? Thank TAs,\
+    instructors, data owners, external resources... If a team project, use this section to report the\
+    contribution of each member: who did contribute to which part of the report)
+
+-    Include references: again, add the link(s) of the dataset(s), the link for the citation of a study/article\
+    for the background context, the link to a picture (if available), and any external resources.
