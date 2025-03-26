@@ -22,9 +22,9 @@ By: Sophia Chen, Berke Kara
 
 We will be using the [Austin Police Department's Crime Reports](https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data) data set, which contains records of incidents and crimes that the Austin Police Department has responded to and documented. Each row in the data set represents a unique crime report, detailing various aspects of the incident, such as the date, location, type of crime, and status of the case. Our primary variables of interest include crime type, location (type and district), date/time of occurrence and report, and family violence. By analyzing these variables, we can identify crime trends across different areas in Austin in 2024.
 
-[![https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/](https://cdn-gnflf.nitrocdn.com/oLzuXrOSBZcEOcWEWWyWBqotmYtrWuwi/assets/images/optimized/rev-365f3a7/www.deepsentinel.com/wp-content/uploads/2022/10/Safest-Neighborhoods-in-Austin-Map-1024x640.jpg){width="426"}](https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/)
+[![https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/](https://cdn-gnflf.nitrocdn.com/oLzuXrOSBZcEOcWEWWyWBqotmYtrWuwi/assets/images/optimized/rev-365f3a7/www.deepsentinel.com/wp-content/uploads/2022/10/Safest-Neighborhoods-in-Austin-Map-1024x640.jpg){width="465"}](https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/)
 
--   previous study or news article; describe how it ties with project; Why is this topic important for you to investigate? What are your motivations
+In news, we hear a lot about how often crime is reported in Austin. For example, [Fox News](https://www.fox7austin.com/news/austin-safe-statistics-crime-down-pre-pandemic-numbers) explored crime rates in Austin, and compared crime statistics of 2019 (pre-pandemic), 2023, and 2024. The article emphasizes that while 2024 crime rates seemed lower when compared to 2023, crimes such as motor vehicle theft, aggravated assaults, and homicides were "way up" when compared to 2019 statistics. This led us to wonder whether crime was clustered in specific areas of Austin, and where they were occurring the most. Additionally, it made us wonder if crime rates and types were consistent throughout the year, and if there are factors, such as location type, that affected crime frequency. As students living in Austin, this topic is important to us as we want to consider the crime rates of an area when looking at housing options. Our motivation is to use the data we analyzed to find the regions that have the lowest crime so that when we are looking for a new residence, we can focus on areas with lower crime rates.
 
 **We will explore this data set to answer the following research questions:**
 
@@ -57,7 +57,7 @@ clean_Crime <- atxCrime|>
          )|>
   mutate(Occurred = mdy_hm(Occurred),
          Report = mdy_hm(Report),
-         Difference = difftime(Report, Occurred, units = "hours"),
+         Difference = round(difftime(Report, Occurred, units = "hours")),
          Region = case_when(
            District %in% c(4, 6, 7) ~ "North Austin",
            District %in% c(2, 5, 8) ~ "South Austin",
@@ -68,22 +68,45 @@ clean_Crime <- atxCrime|>
          Location %in% c("RESIDENCE / HOME", "PARKING /DROP LOT/ GARAGE", "HWY / ROAD / ALLEY/ STREET/ SIDEWALK", "HOTEL / MOTEL / ETC."),
          !is.na(c(District)),
          District != 10)
-newCrime
 ```
 
-**Before wrangling, the data set had 2,532,115 rows and 6 columns. After wrangling, the data set has 16,523 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, and the Location categories with the highest count of crime in the data set.**
+**Before wrangling, the data set had 2,532,115 rows and 6 columns. After wrangling, the data set has 16,523 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, and the Location categories with the highest count of crime in the data set. The number of columns are different after wrangling because we added two columns that are derived from the existing columns - Difference, which is the time difference between the Report and Occurred Time, and Region, which groups the districts into regions of Austin.**
 
 **The data set is tidy because each column represents one variable and each row represents one observation/crime report.**
-
--   how many rows/columns did you start/end with; reason why number of rows/columns may be different before/after wrangling
-
--   justify if data is tidy
 
 ### Results
 
 -   make a visualization exploring the distribution of each variable in the research question and report summary stats
 
-    -   Which Austin region has the most crime of any type, and which crime type is the most common in each region, including family violence? (Sophia)
+    ```{r}
+    # Creates a bar graph of the distribution of crime reports per Austin region in 2024.
+    ggplot(data = clean_Crime)+
+      geom_bar(aes(x = Region))+
+      labs(
+        title = "Figure 1: Amount of Crime per Austin Region in 2024",
+        x = "Austin Region",
+        y = "Number of Crime Reports",
+        caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+      )+
+      scale_y_continuous(breaks = seq(0,6000,500))
+
+    ```
+
+    \*\*\*\*\*\*\*\*\*
+
+    ```{r}
+    ggplot(data = clean_Crime)+
+      geom_bar(aes(x = Offense))+
+      labs(
+        title = "Distribution of Offense Types in Austin, 2024",
+        x = "Offense Type",
+        y = "Number of Crime Reports",
+        caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+      )+
+      scale_y_continuous(breaks = seq(0,8000,500))
+    ```
+
+    -   Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types? (Sophia)
 
     -   How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
 
@@ -94,20 +117,54 @@ newCrime
 -   at least 2 visualizations representing relationships between 2 variables reporting the\
     appropriate summary statistics. You could also do some visualizations with 3 variables if you’d like. If a team project, each member creates 2 multivariate visualizations, with the appropriate statistics
 
-```{r}
-# Creates a bar graph of the number of crime reports per Austin region in 2024.
-ggplot(data = clean_Crime)+
-  geom_bar(aes(x = Region))+
+```{r} # line graph of the number of crime reports by offense type per month in 2024.}
+clean_Crime|>
+  group_by(Offense, Month = month(Occurred))|>
+  summarise(Count = n(), .groups = "keep")|>
+  ggplot()+
+  geom_line(aes(x = Month, y = Count, color = Offense))+
+  geom_point(aes(x = Month, y = Count, shape = Offense))+
+  scale_x_continuous(breaks = seq(0,12,1))+
   labs(
-    title = "Figure 1: Amount of Crime per Austin Region in 2024",
-    x = "Austin Region",
-    y = "Number of Crime Reports",
-    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+    title = "Amount of Crime by Offense Type per Month",
+    x = "Month",
+    y = "Number of Crime Reports"
   )+
-  scale_y_continuous(breaks = seq(0,6000,500))
+  scale_y_continuous(breaks = seq(100,700,50))
+
+
 ```
 
 ```{r}
+# number of crime reports that had family violence sorted by offense type
+clean_Crime|>
+  filter(Family == "Y")|>
+  ggplot()+
+  geom_bar(aes(x = Offense))+
+  labs(
+    title = "Crime Reports that had Family Violence",
+    x = "Offense Type",
+    y = "Number of Reports"
+  )
+
+```
+
+```{r}
+# how many crimes in each region had family violence involved
+clean_Crime|>
+  filter(Family == "Y")|>
+  ggplot()+
+  geom_bar(aes(x = Region))+
+  labs(
+    title = "Number of Crime Reports Involving Family Violence per Region",
+    x = "Region",
+    y = "Number of Crime Reports"
+  )
+  
+```
+
+```{r}
+# Frequency of each crime type by Region !!!!!!!!!!!!!!!! Answers part of Sophia's research question
 ggplot(data = clean_Crime)+
   geom_bar(aes(x = Offense, fill = Offense))+
   labs(
@@ -117,6 +174,9 @@ ggplot(data = clean_Crime)+
   )+
   facet_wrap(~Region)+
   theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+
+
+prop.table(table(clean_Crime$Region, clean_Crime$Offense))
 ```
 
 -   Appropriate titles and labels for each visualization and make sure summary statistics are\
@@ -150,5 +210,5 @@ ggplot(data = clean_Crime)+
     instructors, data owners, external resources... If a team project, use this section to report the\
     contribution of each member: who did contribute to which part of the report)
 
--    Include references: again, add the link(s) of the dataset(s), the link for the citation of a study/article\
+-   Include references: again, add the link(s) of the dataset(s), the link for the citation of a study/article\
     for the background context, the link to a picture (if available), and any external resources.
