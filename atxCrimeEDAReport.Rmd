@@ -41,7 +41,7 @@ In news, we hear a lot about how often crime is reported in Austin. For example,
 library(tidyverse)
 library(lubridate)
 library(readr)
-atxCrime <- read_csv("Crime_Reports_20250228.csv")
+atxCrime <- read_csv("Crime_Reports.csv")
 dim(atxCrime)
 ```
 
@@ -56,8 +56,16 @@ clean_Crime <- atxCrime|>
          Report = `Report Date Time`,
          )|>
   mutate(Occurred = mdy_hm(Occurred),
+         Month = month(Occurred),
          Report = mdy_hm(Report),
-         Difference = round(difftime(Report, Occurred, units = "hours")),
+         Delay = round(difftime(Report, Occurred, units = "hours")),
+         Difference = case_when(
+           Delay <= 24 ~ "Within a Day",
+           Delay <= 168 ~ "Within a Week",
+           Delay <= 720 ~ "Within a Month",
+           Delay > 720 ~ "More than a Month"
+         ),
+         Difference=factor(Difference,levels=c("Within a Day","Within a Week","Within a Month","More than a Month")),
          Region = case_when(
            District %in% c(4, 6, 7) ~ "North Austin",
            District %in% c(2, 5, 8) ~ "South Austin",
@@ -67,7 +75,11 @@ clean_Crime <- atxCrime|>
          Offense %in% c("FAMILY DISTURBANCE", "BURGLARY OF VEHICLE", "THEFT", "HARASSMENT"),
          Location %in% c("RESIDENCE / HOME", "PARKING /DROP LOT/ GARAGE", "HWY / ROAD / ALLEY/ STREET/ SIDEWALK", "HOTEL / MOTEL / ETC."),
          !is.na(c(District)),
-         District != 10)
+         District != 10)|>
+  select(
+    Offense, Occurred, Location, Region, Difference, Family, Month
+  )
+clean_Crime
 ```
 
 **Before wrangling, the data set had 2,532,115 rows and 6 columns. After wrangling, the data set has 16,523 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, and the Location categories with the highest count of crime in the data set. The number of columns are different after wrangling because we added two columns that are derived from the existing columns - Difference, which is the time difference between the Report and Occurred Time, and Region, which groups the districts into regions of Austin.**
@@ -81,43 +93,196 @@ clean_Crime <- atxCrime|>
     ```{r}
     # Creates a bar graph of the distribution of crime reports per Austin region in 2024.
     ggplot(data = clean_Crime)+
-      geom_bar(aes(x = Region))+
+      geom_bar(aes(x = Region),fill="lightgreen",color="black")+
       labs(
         title = "Figure 1: Amount of Crime per Austin Region in 2024",
         x = "Austin Region",
         y = "Number of Crime Reports",
         caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-      )+
+        )+
       scale_y_continuous(breaks = seq(0,6000,500))
+
+    #the count of crime in each region
+    clean_Crime|>
+      group_by(Region)|>
+      summarize(
+    Count = n())
+
+    #the proportion of crime by region
+    prop.table(table(clean_Crime$Region))
 
     ```
 
-    \*\*\*\*\*\*\*\*\*
-
-    ```{r}
-    ggplot(data = clean_Crime)+
-      geom_bar(aes(x = Offense))+
-      labs(
-        title = "Distribution of Offense Types in Austin, 2024",
+```{r}
+# Creates a bar graph of the number of crime reports per Austin region in 2024.
+ggplot(data = clean_Crime)+
+  geom_bar(aes(x = Offense,fill = Offense,),color="black")+
+  labs(
+        title = "Figure 2: Distribution of Offense Types in Austin, 2024",
         x = "Offense Type",
         y = "Number of Crime Reports",
         caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
       )+
-      scale_y_continuous(breaks = seq(0,8000,500))
-    ```
+  scale_y_continuous(breaks = seq(0,8000,500))+
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())
 
-    -   Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types? (Sophia)
+#count of each offense type in Austin
+clean_Crime|>
+  group_by(Offense)|>
+  summarize(
+    Count = n()
+  )
+prop.table(table(clean_Crime$Offense))
+```
 
-    -   How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
+```{r}
+# Pie Chart of number of crime reports that involved Family Violence
+mytable <- table(clean_Crime$Family)
+lbls <- paste(names(mytable), "\n", mytable, sep="")
+pie(mytable, labels = lbls,
+   main="Figure 3: Crime Reports that Involved Family Violence in 2024",
+   radius=1,
+    col=c("cyan", "red"))
+legend("bottomright", 
+       legend = names(mytable),
+       fill = c("cyan", "red"),
+       title = "Family Violence")
+mtext("https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data", side = 1, line = 4, adj = 1)
 
-        -   sophia: region, type, family violence
+# count of crime reports where family violence was involved
+clean_Crime|>
+  group_by(Family)|>
+  summarize(
+    Count = n())
+# proportion of family violence involved in Austin crime reports in 2024
+prop.table(table(clean_Crime$Family))
 
-        -   berke: time of day/year, type, location, difference
+```
+
+```{r}
+# histogram of the distribution of crime reports by day of the month in Austin for 2024.
+clean_Crime |>
+  ggplot(aes(x = hour(Occurred))) +
+  geom_histogram(fill = "lightblue", bins =  24, color = "black") +
+  labs(
+    title = "Crime Reports by Hour of the Day in Austin (2024)",
+    x = "Hour of the Day",
+    y = "Number of Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  ) +
+  scale_y_continuous(breaks = seq(0, 3000, 100))+
+  scale_x_continuous(breaks = seq(0, 23, by = 1), 
+                     labels = c("12 AM", "1 AM", "2 AM", "3 AM", "4 AM", "5 AM", 
+                                "6 AM", "7 AM", "8 AM", "9 AM", "10 AM", "11 AM", 
+                                "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", 
+                                "6 PM", "7 PM", "8 PM", "9 PM", "10 PM", "11 PM")) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8) 
+  )
+
+#find the average, median, minimum, and maximum amount of crime per hour
+clean_Crime|>
+  group_by(Hour = hour(Occurred))|>
+  summarise(Count = n(), .groups = "drop")
+
+
+```
+
+```{r}
+# visualizes the distribution of crime reports by month in Austin for 2024.
+clean_Crime |>
+  ggplot(aes(x = month(Occurred))) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 12) +
+  labs(
+    title = "Figure 5: Crime Reports by Month (2024)", 
+    subtitle = "Austin, TX",
+    x = "Month of the Year", 
+    y = "Number of Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  ) +
+  scale_x_continuous(
+    breaks = seq(1, 12, by = 1), 
+    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+  )
+
+# find the average, median, minimum, and maximum amount of crime per month
+clean_Crime|>
+  group_by(Month = month(Occurred))|>
+  summarise(Count = n(), .groups = "drop")|>
+  summarize(
+    avgPerMonth = mean(Count),
+    medianPerMonth = median(Count),
+    minPerMonth = min(Count),
+    maxPerMonth = max(Count))
+```
+
+```{r}
+# bar graph of the time it took to report a crime
+clean_Crime|>
+  ggplot(aes(x = Difference)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Figure 7: How Long It Took to Report a Crime in Austin (2024)", 
+       subtitle = "Austin, TX",
+       x = "Time Difference", 
+       y = "Number of Incidents",
+       caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data")+
+  scale_y_continuous(breaks = seq(0,12000,1000))
+
+# count of crime reports by time difference between occurred and report time
+clean_Crime|>
+  group_by(Difference)|>
+  summarize(
+    Count = n()
+  )
+# proportion of crime reports by time difference between occurred and report time
+prop.table(table(clean_Crime$Difference))
+```
+
+```         
+-   Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types? (Sophia)
+
+-   How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
+
+    -   sophia: region, type, family violence
+
+    -   berke: time of day, year, type, location, difference
+```
 
 -   at least 2 visualizations representing relationships between 2 variables reporting the\
     appropriate summary statistics. You could also do some visualizations with 3 variables if you’d like. If a team project, each member creates 2 multivariate visualizations, with the appropriate statistics
 
-```{r} # line graph of the number of crime reports by offense type per month in 2024.}
+```{r}
+# visualizes the distribution of presence of family violence by crime report location in Austin for 2024.
+clean_Crime |>
+  ggplot(aes(x = Location)) +
+  geom_bar(fill = "steelblue", color = "black", width = 0.7) +  # Added black border for better contrast
+  labs(
+    title = "Figure 6: Family Violence by Location in Austin (2024)", 
+    subtitle = "Austin, TX",
+    x = "Location Type", 
+    y = "Number of Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  ) +
+  scale_y_continuous(
+    breaks = seq(0, 12000, 1000),
+    labels = scales::comma
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# count of crime reports with family violence per location
+clean_Crime|>
+  group_by(Location)|>
+  summarize(
+    Count = n()
+  )
+# proportion of crime reports with family violence per location
+prop.table(table(clean_Crime$Location))
+
+```
+
+```{r}
+# line graph of the number of crime reports by offense type per month in 2024.}
 clean_Crime|>
   group_by(Offense, Month = month(Occurred))|>
   summarise(Count = n(), .groups = "keep")|>
@@ -127,11 +292,53 @@ clean_Crime|>
   scale_x_continuous(breaks = seq(0,12,1))+
   labs(
     title = "Amount of Crime by Offense Type per Month",
+    subtitle = "Austin, TX",
     x = "Month",
-    y = "Number of Crime Reports"
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
   )+
   scale_y_continuous(breaks = seq(100,700,50))
 
+# find the average, median, minimum, and maximum amount of crime per month
+clean_Crime|>
+  group_by(Offense, Month = month(Occurred))|>
+  summarise(Count = n(), .groups = "drop")|>
+  group_by(Offense)|>
+  summarize(
+    avgPerMonth = mean(Count),
+    medianPerMonth = median(Count),
+    minPerMonth = min(Count),
+    maxPerMonth = max(Count))
+
+```
+
+```{r}
+# Creates a pie chart of the number of crime reports by location in Austin (2024)
+filtered=clean_Crime|>
+  filter(Family=="Y")
+  
+mytable <- table(filtered$Location)
+lbls <- paste(mytable, sep = "")
+pie(mytable, labels = lbls,
+    main = "Figure 2: Distribution of Family Violence Reports by Location (2024)",
+    col = c("cyan", "red", "purple", "darkgoldenrod1"), radius = 0.9)
+legend("bottomright", 
+       legend = c("RESIDENCE / HOME", "PARKING / GARAGE", "HWY / ROAD / ST", "HOTEL / MOTEL / ETC."),
+       fill = c("darkgoldenrod1", "purple", "red", "cyan"),
+       title = "Family Violence",
+       cex = 0.9,
+       inset = c(0, -0.04),
+       bty = "n")
+mtext("https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data", side = 1, line = 4, adj = 1)
+
+clean_Crime|>
+  filter(Family == "Y")|>
+  group_by(Location)|>
+  summarize(
+    Count = n(),
+    .groups = "drop"
+  )
+prop.table(table(clean_Crime$Family, clean_Crime$Location))
 
 ```
 
@@ -140,13 +347,24 @@ clean_Crime|>
 clean_Crime|>
   filter(Family == "Y")|>
   ggplot()+
-  geom_bar(aes(x = Offense))+
+  geom_bar(aes(x = Offense),fill="lightgreen",color="black")+
   labs(
     title = "Crime Reports that had Family Violence",
+    subtitle = "Austin, TX",
     x = "Offense Type",
-    y = "Number of Reports"
+    y = "Number of Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )
+# Count of crime reports that included family violence
+clean_Crime|>
+  filter(Family == "Y")|>
+  group_by(Offense)|>
+  summarize(
+    Count = n()
   )
 
+# proportion of crimes based on offense type and presence of family violence
+prop.table(table(clean_Crime$Offense, clean_Crime$Family))
 ```
 
 ```{r}
@@ -154,13 +372,23 @@ clean_Crime|>
 clean_Crime|>
   filter(Family == "Y")|>
   ggplot()+
-  geom_bar(aes(x = Region))+
+  geom_bar(aes(x = Region),fill="lightblue",color="black")+
   labs(
     title = "Number of Crime Reports Involving Family Violence per Region",
     x = "Region",
-    y = "Number of Crime Reports"
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
   )
   
+#for Number of Crime Reports Involving Family Violence per Region
+clean_Crime|>
+  filter(Family == "Y")|>
+  group_by(Region)|>
+  summarize(
+    Count = n()
+  )
+prop.table(table(clean_Crime$Family, clean_Crime$Region))  
+
 ```
 
 ```{r}
@@ -176,7 +404,8 @@ ggplot(data = clean_Crime)+
   theme(axis.text.x = element_blank(), axis.title.x = element_blank())
 
 
-prop.table(table(clean_Crime$Region, clean_Crime$Offense))
+#Frequency of each crime type by Region
+prop.table(table(clean_Crime$Region, clean_Crime$Offense)) 
 ```
 
 -   Appropriate titles and labels for each visualization and make sure summary statistics are\
