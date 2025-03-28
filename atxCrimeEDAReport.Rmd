@@ -14,13 +14,13 @@ knitr::opts_chunk$set(echo = TRUE,
                       R.options = list(max.print=50))
 ```
 
-## An Analysis of Austin Crime Reports
+## An Analysis of Austin Crime Reports in 2024
 
 By: Sophia Chen, Berke Kara
 
 ### Introduction
 
-We will be using the [Austin Police Department's Crime Reports](https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data) data set, which contains records of incidents and crimes that the Austin Police Department has responded to and documented. Each row in the data set represents a unique crime report, detailing various aspects of the incident, such as the date, location, type of crime, and status of the case. Our primary variables of interest include crime type, location (type and district), date/time of occurrence and report, and family violence. By analyzing these variables, we can identify crime trends across different areas in Austin in 2024.
+We will be using the [Austin Police Department's Crime Reports](https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data) data set, which contains records of incidents and crimes that the Austin Police Department has responded to and documented. Each row in the data set represents a unique crime report, detailing various aspects of the incident, such as the date, location, type of crime, and status of the case. Our primary variables of interest include crime type, location (type and district), date/time of occurrence and report, and family violence.
 
 [![https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/](https://cdn-gnflf.nitrocdn.com/oLzuXrOSBZcEOcWEWWyWBqotmYtrWuwi/assets/images/optimized/rev-365f3a7/www.deepsentinel.com/wp-content/uploads/2022/10/Safest-Neighborhoods-in-Austin-Map-1024x640.jpg){width="465"}](https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/)
 
@@ -28,11 +28,15 @@ In news, we hear a lot about how often crime is reported in Austin. For example,
 
 **We will explore this data set to answer the following research questions:**
 
-1.  Which Austin region has the most crime of any type, and which crime type is the most common in each region, including family violence? (Sophia)
-2.  How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
+1.  Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types and regions? (Sophia)
 
--   Try to anticipate what you will learn by conducting this analysis: What trends or relationships do\
-    you expect?
+2.  How does time of day, year, or location affect the frequency of criminal activity, how do offense types vary throughout the year, and how does location affect the delay between crime occurrence and report? (Berke)
+
+**What Trends Do We Expect & What Do We Expect to Learn**
+
+Based on our experience living in Austin, we anticipate higher crime rates in areas closer to downtown. We also hypothesize that crime is more prevalent during the winter months, possibly due to increased economic pressures and harsher living conditions. Additionally, we expect crime reports to peak around midnight and decrease slowly until the morning hours like 6 am.
+
+We believe most crimes will occur on streets, particularly during winter. Our primary interest lies in understanding how crime patterns vary across different districts, including identifying the most common types of crimes and assessing the relative safety of each area based on crime frequency and crime type.
 
 ### Methods
 
@@ -41,6 +45,7 @@ In news, we hear a lot about how often crime is reported in Austin. For example,
 library(tidyverse)
 library(lubridate)
 library(readr)
+library(sf)
 atxCrime <- read_csv("Crime_Reports.csv")
 dim(atxCrime)
 ```
@@ -70,55 +75,162 @@ clean_Crime <- atxCrime|>
            District %in% c(4, 6, 7) ~ "North Austin",
            District %in% c(2, 5, 8) ~ "South Austin",
            District %in% c(9) ~ "Central Austin",
+           District %in% c(10) ~ "West Austin",
            District %in% c(1, 3) ~ "East Austin"))|>
   filter(year(Occurred) == 2024,
          Offense %in% c("FAMILY DISTURBANCE", "BURGLARY OF VEHICLE", "THEFT", "HARASSMENT"),
          Location %in% c("RESIDENCE / HOME", "PARKING /DROP LOT/ GARAGE", "HWY / ROAD / ALLEY/ STREET/ SIDEWALK", "HOTEL / MOTEL / ETC."),
-         !is.na(c(District)),
-         District != 10)|>
+         !is.na(c(District)))|>
+  mutate(Location = case_when(
+    Location == "RESIDENCE / HOME" ~ "Residence",
+    Location == "PARKING /DROP LOT/ GARAGE" ~ "Parking",
+    Location == "HWY / ROAD / ALLEY/ STREET/ SIDEWALK" ~ "Street",
+    Location == "HOTEL / MOTEL / ETC." ~ "Other",
+    TRUE ~ Location
+  ))|>
   select(
-    Offense, Occurred, Location, Region, Difference, Family, Month
+    Offense, Occurred, Location, Region, Difference, Family, Month, District
   )
 clean_Crime
+dim(clean_Crime)
 ```
 
-**Before wrangling, the data set had 2,532,115 rows and 6 columns. After wrangling, the data set has 16,523 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, and the Location categories with the highest count of crime in the data set. The number of columns are different after wrangling because we added two columns that are derived from the existing columns - Difference, which is the time difference between the Report and Occurred Time, and Region, which groups the districts into regions of Austin.**
+**Before wrangling, the data set had 86,779 rows and 19 columns. After wrangling, the data set has 17,967 rows and 8 columns. The number of rows are different after wrangling because we filtered the data set to only include Offenses that were categorized as Family Disturbance, Harassment, Burglary of Vehicle, and Theft, Location categories with the highest count of crime in the data set, and the year crime occurred to 2024. The number of columns are different after wrangling because we added two columns that are derived from the existing columns - Difference, which is the time difference between the Report and Occurred Time, and Region, which groups the districts into regions.**
 
 **The data set is tidy because each column represents one variable and each row represents one observation/crime report.**
 
-### Results
-
--   make a visualization exploring the distribution of each variable in the research question and report summary stats
-
-    ```{r}
-    # Creates a bar graph of the distribution of crime reports per Austin region in 2024.
-    ggplot(data = clean_Crime)+
-      geom_bar(aes(x = Region),fill="lightgreen",color="black")+
-      labs(
-        title = "Figure 1: Amount of Crime per Austin Region in 2024",
-        x = "Austin Region",
-        y = "Number of Crime Reports",
-        caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-        )+
-      scale_y_continuous(breaks = seq(0,6000,500))
-
-    #the count of crime in each region
-    clean_Crime|>
-      group_by(Region)|>
-      summarize(
-    Count = n())
-
-    #the proportion of crime by region
-    prop.table(table(clean_Crime$Region))
-
-    ```
+### Results (Sophia)
 
 ```{r}
-# Creates a bar graph of the number of crime reports per Austin region in 2024.
+# Import the shapefile from the portal
+districts <- read_csv("https://data.austintexas.gov/resource/w3v2-cj58.csv")|>
+  mutate(geometry = st_as_sfc(the_geom))
+
+crime_summary = clean_Crime |>
+  group_by(District) |>
+  summarize(Reports = n())
+
+districts |>
+  # Perform an inner join between the districts dataset and the coyote summary data based on the district number
+  inner_join(crime_summary, join_by(district_number == District)) |>
+  # Create a map visualization
+  ggplot() +
+  # Use the geometry data to create a polygon map, with the fill representing the number of reports
+  geom_sf(aes(geometry = geometry, fill = Reports), color = "black") +
+  # Use a gradient color scale to represent the number of reports
+  scale_fill_gradient(low = "cadetblue1", high = "darkblue") +
+  # Add district labels to the map with black text
+  geom_sf_text(aes(geometry = geometry, label = district_number), size = 2, color = "black") +
+  labs(x = "Longitude", y = "Latitude", title = "Figure 0: Crime Count by District")
+```
+
+**Crime rates in Austin vary significantly by districts, with the eastern districts experiencing the highest concentrations, while the western districts report the lowest. This pattern suggests that factors such as socioeconomic conditions, population density, and infrastructure development play a role in crime distribution across the city. However, due to project specifications, we cannot analyze crime data at the district level. Instead, we categorize the city into five broader regions: North, South, West, East, and Central Austin. While this approach simplifies data representation, it also introduces potential limitations. Aggregating multiple districts into larger regions may obscure important variations within those districts, leading to an uneven or less precise understanding of crime trends. As a result, certain localized crime patterns may be diluted, making it more challenging to fully capture the nuances of crime distribution across the city. When interpreting crime reports, please keep this limitation in mind. The regional grouping may not fully reflect the actual crime variations within individual districts or areas.**
+
+```{r}
+# Creates a bar graph of the distribution of crime reports per Austin region in 2024.
+ggplot(data = clean_Crime)+
+  geom_bar(aes(x = Region),fill="lightgreen",color="black")+
+  labs(
+    title = "Figure 1: Amount of Crime per Austin Region in 2024",
+    x = "Austin Region",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+    )+
+  scale_y_continuous(breaks = seq(0,6000,500))
+
+# the count, mean and standard deviation of crime in each region
+clean_Crime|>
+  group_by(Region)|>
+  summarize(
+Count = n())
+
+# the proportion of crime by region
+round(prop.table(table(clean_Crime$Region)),3)
+
+```
+
+**Based on this visualization, North Austin had the most crime reports in 2024, with 5,301 reports, followed by East Austin at 4,906 reports. Crime reports in North and East Austin made up 29.6% and 27.4% of total Austin crime reports in 2024. While the visualization depicts that West Austin had the least amount of crime reports, at 1,413 and 7.9%, followed by Central Austin with 1,994 reports, or 11.1%, it's important to note that West and Central Austin consists of only one district each (district 10 and 9, respectively). North Austin includes 3 districts, South Austin includes 4, and East Austin includes 2 districts.**
+
+```{r}
+# Frequency of each crime type by Region 
+ggplot(data = clean_Crime)+
+  geom_bar(aes(x = Offense, fill = Offense),color = "black")+
+  labs(
+    title = "Figure 2: Frequency of Crime Reports by Offense Type and Region",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )+
+  facet_wrap(~Region)+
+  theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+
+
+# Proportion of each crime type by Region
+prop.table(table(clean_Crime$Region, clean_Crime$Offense)) 
+```
+
+**The most frequent offense type in North, East, and South Austin are Family Disturbance, while the most frequent offense type in Central and West Austin is Burglary of Vehicle. The least frequent offense type in Central, East, North, and South Austin are Harassment, while the least frequent in West Austin is Theft.**
+
+```{r}
+# number of crime reports that involved family violence sorted by offense type
+clean_Crime|>
+  filter(Family == "Y")|>
+  ggplot()+
+  geom_bar(aes(x = Offense),fill="lightgreen",color="black")+
+  labs(
+    title = "Figure 3: Offense Types that Involved Family Violence",
+    subtitle = "Austin, TX",
+    x = "Offense Type",
+    y = "Number of Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )
+# Count of crime reports that involved family violence
+clean_Crime|>
+  filter(Family == "Y")|>
+  group_by(Offense)|>
+  summarize(
+    Count = n()
+  )
+
+# proportion of crimes based on offense type and presence of family violence
+prop.table(table(clean_Crime$Offense, clean_Crime$Family))
+```
+
+**This bar graph illustrates that the most common offense that involves family violence, relative to other offense types in the data set, is harassment, with 364 harassment offenses that included family violence - 2% of all crimes in the data set. This is followed by theft, which had 32 offenses that involved family violence. There were no family violence involved in Burglary of Vehicle or Family Disturbance reports. This highlights the lack of family violence involvement within crimes in our data set.**
+
+```{r}
+# how many crimes in each region had family violence involved
+clean_Crime|>
+  filter(Family == "Y")|>
+  ggplot()+
+  geom_bar(aes(x = Region),fill="lightblue",color="black")+
+  labs(
+    title = "Figure 4: Crime Reports Involving Family Violence per Region",
+    x = "Region",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )
+  
+# Number of Crime Reports Involving Family Violence per Region
+clean_Crime|>
+  filter(Family == "Y")|>
+  group_by(Region)|>
+  summarize(
+    Count = n()
+  )
+# proportion of crimes in each region that involved family violence
+prop.table(table(clean_Crime$Family, clean_Crime$Region))  
+```
+
+**The region with the most counts of family violence involvement is North Austin, with 120 reports - 0.67% of all reports in the data set. This is followed by East Austin, with 110 reports - 0.61% of all reports in the data set. These results emphasize the low prevalence of family violence among Harassment, Family Disturbance, Burglary of Vehicle, and Theft.**
+
+### Results (Berke)
+
+```{r}
+# Creates a bar graph of the number of crime reports per Offense type in 2024.
 ggplot(data = clean_Crime)+
   geom_bar(aes(x = Offense,fill = Offense,),color="black")+
   labs(
-        title = "Figure 2: Distribution of Offense Types in Austin, 2024",
+        title = "Figure 5: Distribution of Offense Types in Austin, 2024",
         x = "Offense Type",
         y = "Number of Crime Reports",
         caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
@@ -131,41 +243,20 @@ clean_Crime|>
   group_by(Offense)|>
   summarize(
     Count = n()
-  )
-prop.table(table(clean_Crime$Offense))
+  )|>
+  arrange(desc(Count))
+round(prop.table(table(clean_Crime$Offense)), 2)
 ```
 
-```{r}
-# Pie Chart of number of crime reports that involved Family Violence
-mytable <- table(clean_Crime$Family)
-lbls <- paste(names(mytable), "\n", mytable, sep="")
-pie(mytable, labels = lbls,
-   main="Figure 3: Crime Reports that Involved Family Violence in 2024",
-   radius=1,
-    col=c("cyan", "red"))
-legend("bottomright", 
-       legend = names(mytable),
-       fill = c("cyan", "red"),
-       title = "Family Violence")
-mtext("https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data", side = 1, line = 4, adj = 1)
-
-# count of crime reports where family violence was involved
-clean_Crime|>
-  group_by(Family)|>
-  summarize(
-    Count = n())
-# proportion of family violence involved in Austin crime reports in 2024
-prop.table(table(clean_Crime$Family))
-
-```
+**The most frequently reported crime in our selected categories in Austin was Family Disturbance, with 7,824 incidents, while the least reported was Harassment, with 1,672 incidents. According to the proportion table, Family Disturbance accounted for 44% of the reported crimes in our categories, whereas Harassment made up just 0.09%.**
 
 ```{r}
-# histogram of the distribution of crime reports by day of the month in Austin for 2024.
+# histogram of the distribution of crime reports by hour of the day in Austin for 2024.
 clean_Crime |>
   ggplot(aes(x = hour(Occurred))) +
   geom_histogram(fill = "lightblue", bins =  24, color = "black") +
   labs(
-    title = "Crime Reports by Hour of the Day in Austin (2024)",
+    title = "Figure 6: Crime Reports by Hour of the Day in Austin (2024)",
     x = "Hour of the Day",
     y = "Number of Reports",
     caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
@@ -183,10 +274,21 @@ clean_Crime |>
 #find the average, median, minimum, and maximum amount of crime per hour
 clean_Crime|>
   group_by(Hour = hour(Occurred))|>
-  summarise(Count = n(), .groups = "drop")
-
-
+  summarize(Count = n(), .groups = "drop")|>
+  arrange(desc(Count))|>
+  slice_max(n=5,Count)
+clean_Crime|>
+  group_by(Hour = hour(Occurred))|>
+  summarize(Count = n())|>
+  summarise(
+    meanHour = mean(Count),
+    medianHour = median(Count),
+    minPerHour = min(Count),
+    maxPerHour = max(Count),
+    stdev = sd(Count))
 ```
+
+**The most dangerous hour in Austin in 2024 was midnight (12 AM), with 1,477 reported incidents. This follows a trend of increasing crime from 9 PM to midnight. Interestingly, 12 PM had the third-highest number of reported incidents. On average, there were approximately 747 reported incidents per hour, with the lowest count occurring at 5 AM (311 incidents). The standard deviation is about 296, meaning that the number of reported incidents per hour tends to fluctuate significantly, with some hours experiencing much higher or lower crime rates than the average. This graph highlights that crime tends to rise at night, peaking at midnight, before declining after midnight as fewer people are awake. Notably, the lowest crime reports occur around 5 AM.**
 
 ```{r}
 # visualizes the distribution of crime reports by month in Austin for 2024.
@@ -194,7 +296,7 @@ clean_Crime |>
   ggplot(aes(x = month(Occurred))) +
   geom_histogram(fill = "lightblue", color = "black", bins = 12) +
   labs(
-    title = "Figure 5: Crime Reports by Month (2024)", 
+    title = "Figure 7: Crime Reports by Month (2024)", 
     subtitle = "Austin, TX",
     x = "Month of the Year", 
     y = "Number of Reports",
@@ -206,24 +308,115 @@ clean_Crime |>
                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
   )
 
+
+#find the average, median, minimum, and maximum amount of crime per hour
+clean_Crime|>
+  group_by(Month = month(Occurred))|>
+  summarize(Count = n(), .groups = "drop")|>
+  arrange(desc(Count))|>
+  slice_max(n=5,Count)
+
 # find the average, median, minimum, and maximum amount of crime per month
 clean_Crime|>
   group_by(Month = month(Occurred))|>
   summarise(Count = n(), .groups = "drop")|>
   summarize(
-    avgPerMonth = mean(Count),
+    meanPerMonth = mean(Count),
     medianPerMonth = median(Count),
     minPerMonth = min(Count),
     maxPerMonth = max(Count))
 ```
+
+**In Austin for 2024, there was relatively stable crime rates throughout the year. May had the highest reports (1,621), followed by January (1,609) and July (1,585), while September had the lowest (1,364). The monthly average was 1,495, with a median of 1,484. The 19% variation between the highest and lowest months suggests minimal seasonal impact, with slight peaks possibly linked to local events.**
+
+```{r}
+# Creates a pie chart of the number of crime reports by location in Austin (2024)
+mytable <- table(clean_Crime$Location)
+lbls <- paste(mytable, sep = "")
+pie(mytable, labels = lbls,
+    main = "Figure 8: Distribution of Crime Reports by Location (2024)",
+    col = c("purple", "red", "cyan", "darkgoldenrod1"), radius = 1)
+legend("bottomright", 
+       legend = c("RESIDENCE", "PARKING", "STREET", "OTHER"),
+       fill = c("cyan", "red", "darkgoldenrod1", "purple"),
+       title = "Location",
+       cex = 1,
+       inset = c(0.0, -0.03),
+       bty = "n")
+mtext("https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data", side = 1, line = 4, adj = 1)
+
+clean_Crime|>
+  group_by(Location)|>
+  summarize(
+    Count = n(),
+    .groups = "drop"
+  )
+round(prop.table(table(clean_Crime$Location)),2)
+```
+
+**Residences account for the vast majority of reported crime locations (12,322 reports, 69%), followed by parking areas (3,410 reports, 19%), streets (1,435 reports, 8%), and other locations (769 reports, 4%).**
+
+**This distribution highlights that residential settings are overwhelmingly the most common crime scene in Austin, with more than two-thirds of all reported incidents. The substantial proportion occurring in parking areas reflects the significance of vehicle-related crimes, which correlates with the high incidence of Burglary of Vehicle noted in Figure 5.**
+
+```{r}
+# Create a bar plot to visualize the frequency of crime reports by location and Report Delay
+ggplot(data = clean_Crime) +
+  geom_bar(aes(x = Location, fill = Difference), position = "fill") +
+  labs(
+    title = "Figure 9: Frequency of Crime Reports by Report Delay and Location",
+    x = "Location", 
+    y = "Number of Crime Reports",
+    fill = "Report Delay",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )
+
+# View the proportion table of Location and Difference
+round(prop.table(table(clean_Crime$Location, clean_Crime$Difference)),2)
+
+```
+
+**Crimes reported in residential locations ("Residence") dominate the dataset, accounting for over half (52%) of all reports within a day. Parking areas follow with an immediate reporting rate of about 11%, while streets and other locations contribute smaller proportions. Interestingly, crimes occurring in residential settings also show higher proportions of delayed reporting ("Within a Week" or "Within a Month") compared to public spaces like streets or parking areas. This pattern suggests that crimes in private spaces may face barriers to immediate reporting, such as fear, privacy concerns, or logistical challenges. Crimes in parking areas are reported promptly more often (75% within one day), likely due to their public nature and higher likelihood of being witnessed. Similarly, street crimes show relatively quick reporting times but contribute fewer overall reports compared to residences.**
+
+```{r}
+# line graph of the number of crime reports by offense type per month in 2024.}
+clean_Crime|>
+  group_by(Offense, Month = month(Occurred))|>
+  summarise(Count = n(), .groups = "keep")|>
+  ggplot()+
+  geom_line(aes(x = Month, y = Count, color = Offense))+
+  geom_point(aes(x = Month, y = Count, shape = Offense))+
+  scale_x_continuous(breaks = seq(0,12,1))+
+  labs(
+    title = "Figure 10: Amount of Crime by Offense Type per Month",
+    x = "Month",
+    y = "Number of Crime Reports",
+    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
+  )+
+  scale_y_continuous(breaks = seq(100,700,50))
+
+# find the average, median, minimum, and maximum amount of crime per month
+clean_Crime|>
+  group_by(Offense, Month = month(Occurred))|>
+  summarise(Count = n(), .groups = "drop")|>
+  group_by(Offense)|>
+  summarize(
+    meanPerMonth = mean(Count),
+    medianPerMonth = median(Count),
+    minPerMonth = min(Count),
+    maxPerMonth = max(Count))
+
+```
+
+**Family Disturbance consistently shows the highest volume, ranging from approximately 550-700 reports monthly, with a notable peak in May (700 reports). Burglary of Vehicle follows a similar pattern but with less pronounced seasonality, fluctuating between 470-570 reports monthly. Theft and Harassment show more stable patterns at lower volumes, averaging approximately 200 and 145 monthly reports respectively. Statistical analysis reveals distinct seasonal patterns for each offense type. Family Disturbance shows notable peaks in May, October, and January, potentially correlating with school break. Burglary of Vehicle peaks in July and October, possibly reflecting increased opportunity during vacation periods. Theft reaches its maximum in July, while Harassment peaks in May. These consistent patterns suggest that crime in Austin follows predictable seasonal trends rather than random fluctuations.**
+
+### **Results (Berke & Sophia)**
 
 ```{r}
 # bar graph of the time it took to report a crime
 clean_Crime|>
   ggplot(aes(x = Difference)) +
   geom_bar(fill = "steelblue") +
-  labs(title = "Figure 7: How Long It Took to Report a Crime in Austin (2024)", 
-       subtitle = "Austin, TX",
+  labs(title = "Figure 11: How Long It Took to Report a Crime in Austin (2024)", 
        x = "Time Difference", 
        y = "Number of Incidents",
        caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data")+
@@ -239,27 +432,15 @@ clean_Crime|>
 prop.table(table(clean_Crime$Difference))
 ```
 
-```         
--   Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types? (Sophia)
-
--   How does time of day/year, crime type, and location type affect the frequency of criminal activity and the number of hours it takes to report the crime? (Berke)
-
-    -   sophia: region, type, family violence
-
-    -   berke: time of day, year, type, location, difference
-```
-
--   at least 2 visualizations representing relationships between 2 variables reporting the\
-    appropriate summary statistics. You could also do some visualizations with 3 variables if you’d like. If a team project, each member creates 2 multivariate visualizations, with the appropriate statistics
+**The overwhelming majority (12,707 reports, 70.85%) were reported within 24 hours of occurrence. Reports made within a week accounted for 2,189 incidents (12.20%), within a month for 2,543 incidents (14.18%), and more than a month for only 497 cases (2.77%). The pronounced skew toward immediate reporting indicates that most victims and witnesses take prompt action when crimes occur. The steep drop-off after the 24-hour mark suggests that if a crime isn't reported within the first day, there's a significantly lower probability it will be reported in subsequent periods.**
 
 ```{r}
 # visualizes the distribution of presence of family violence by crime report location in Austin for 2024.
 clean_Crime |>
   ggplot(aes(x = Location)) +
-  geom_bar(fill = "steelblue", color = "black", width = 0.7) +  # Added black border for better contrast
+  geom_bar(fill = "steelblue", color = "black", width = 0.7) +
   labs(
-    title = "Figure 6: Family Violence by Location in Austin (2024)", 
-    subtitle = "Austin, TX",
+    title = "Figure 12: Family Violence by Location in Austin (2024)", 
     x = "Location Type", 
     y = "Number of Reports",
     caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
@@ -278,166 +459,84 @@ clean_Crime|>
   )
 # proportion of crime reports with family violence per location
 prop.table(table(clean_Crime$Location))
-
 ```
 
-```{r}
-# line graph of the number of crime reports by offense type per month in 2024.}
-clean_Crime|>
-  group_by(Offense, Month = month(Occurred))|>
-  summarise(Count = n(), .groups = "keep")|>
-  ggplot()+
-  geom_line(aes(x = Month, y = Count, color = Offense))+
-  geom_point(aes(x = Month, y = Count, shape = Offense))+
-  scale_x_continuous(breaks = seq(0,12,1))+
-  labs(
-    title = "Amount of Crime by Offense Type per Month",
-    subtitle = "Austin, TX",
-    x = "Month",
-    y = "Number of Crime Reports",
-    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-  )+
-  scale_y_continuous(breaks = seq(100,700,50))
-
-# find the average, median, minimum, and maximum amount of crime per month
-clean_Crime|>
-  group_by(Offense, Month = month(Occurred))|>
-  summarise(Count = n(), .groups = "drop")|>
-  group_by(Offense)|>
-  summarize(
-    avgPerMonth = mean(Count),
-    medianPerMonth = median(Count),
-    minPerMonth = min(Count),
-    maxPerMonth = max(Count))
-
-```
+**Residences are the most common location (12,322 reports, 68.70%), followed by parking areas (3,410 reports, 19.01%), streets (1,435 reports, 8.00%), and other locations (769 reports, 4.29%). The statistical breakdown reveals that residential settings are the primary scene for reported crimes, with nearly seven out of ten incidents occurring in homes. This pattern aligns with the high prevalence of Family Disturbance offenses noted in Figure 2, as domestic incidents naturally tend to occur in residential settings.**
 
 ```{r}
-# Creates a pie chart of the number of crime reports by location in Austin (2024)
-filtered=clean_Crime|>
-  filter(Family=="Y")
-  
-mytable <- table(filtered$Location)
-lbls <- paste(mytable, sep = "")
+# Pie Chart of number of crime reports that involved Family Violence
+mytable <- table(clean_Crime$Family)
+lbls <- paste(names(mytable), "\n", mytable, sep="")
 pie(mytable, labels = lbls,
-    main = "Figure 2: Distribution of Family Violence Reports by Location (2024)",
-    col = c("cyan", "red", "purple", "darkgoldenrod1"), radius = 0.9)
+   main="Figure 13: Crime Reports that Involved Family Violence in 2024",
+   radius=1,
+    col=c("cyan", "red"))
 legend("bottomright", 
-       legend = c("RESIDENCE / HOME", "PARKING / GARAGE", "HWY / ROAD / ST", "HOTEL / MOTEL / ETC."),
-       fill = c("darkgoldenrod1", "purple", "red", "cyan"),
-       title = "Family Violence",
-       cex = 0.9,
-       inset = c(0, -0.04),
-       bty = "n")
+       legend = names(mytable),
+       fill = c("cyan", "red"),
+       title = "Family Violence")
 mtext("https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data", side = 1, line = 4, adj = 1)
 
+# count of crime reports where family violence was involved
 clean_Crime|>
-  filter(Family == "Y")|>
-  group_by(Location)|>
+  group_by(Family)|>
   summarize(
-    Count = n(),
-    .groups = "drop"
-  )
-prop.table(table(clean_Crime$Family, clean_Crime$Location))
+    Count = n())
+# proportion of family violence involved in Austin crime reports in 2024
+prop.table(table(clean_Crime$Family))
 
 ```
 
-```{r}
-# number of crime reports that had family violence sorted by offense type
-clean_Crime|>
-  filter(Family == "Y")|>
-  ggplot()+
-  geom_bar(aes(x = Offense),fill="lightgreen",color="black")+
-  labs(
-    title = "Crime Reports that had Family Violence",
-    subtitle = "Austin, TX",
-    x = "Offense Type",
-    y = "Number of Reports",
-    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-  )
-# Count of crime reports that included family violence
-clean_Crime|>
-  filter(Family == "Y")|>
-  group_by(Offense)|>
-  summarize(
-    Count = n()
-  )
+**Out of 17,936 total reports, only 396 incidents (2.21%) involved family violence, while the vast majority (17,540 reports or 97.79%) did not. This relatively small percentage might indicate either a low incidence of family violence or potential underreporting due to various social barriers, or due to limitations of project spec. However, even at 2.21%, these incidents represent nearly 400 cases requiring specialized response protocols from law enforcement and social services.**
 
-# proportion of crimes based on offense type and presence of family violence
-prop.table(table(clean_Crime$Offense, clean_Crime$Family))
-```
+### Discussion (Sophia)
 
-```{r}
-# how many crimes in each region had family violence involved
-clean_Crime|>
-  filter(Family == "Y")|>
-  ggplot()+
-  geom_bar(aes(x = Region),fill="lightblue",color="black")+
-  labs(
-    title = "Number of Crime Reports Involving Family Violence per Region",
-    x = "Region",
-    y = "Number of Crime Reports",
-    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-  )
-  
-#for Number of Crime Reports Involving Family Violence per Region
-clean_Crime|>
-  filter(Family == "Y")|>
-  group_by(Region)|>
-  summarize(
-    Count = n()
-  )
-prop.table(table(clean_Crime$Family, clean_Crime$Region))  
+The region with the most crime of any type is North Austin, making up 29.6% of crimes in the data set, followed by East Austin, which made up 27.4% of crimes in the data set (Figure 1).
 
-```
+The most common crime type in each region is Family Disturbance in North (14.1%), East (13.6%), and South Austin (11.4%), and Burglary of Vehicle in Central (4.9%) and West Austin (4.2%) (Figure 2).
 
-```{r}
-# Frequency of each crime type by Region !!!!!!!!!!!!!!!! Answers part of Sophia's research question
-ggplot(data = clean_Crime)+
-  geom_bar(aes(x = Offense, fill = Offense))+
-  labs(
-    title = "Figure 2: Frequency of Crime Reports by Offense Type and Region",
-    y = "Number of Crime Reports",
-    caption = "https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data"
-  )+
-  facet_wrap(~Region)+
-  theme(axis.text.x = element_blank(), axis.title.x = element_blank())
+Family Violence is most commonly involved among Harassment reports, making up 2% of all crimes in the data set (Figure 3). This is followed by theft, which had 32 reports (0.2%) (Figure 3). There was no family violence involved in Burglary of Vehicle or Family Disturbance reports (Figure 3).
 
+Family Violence is most commonly involved in North Austin (0.67%) and East Austin (0.61%) (Figure 4).
 
-#Frequency of each crime type by Region
-prop.table(table(clean_Crime$Region, clean_Crime$Offense)) 
-```
+These results did not match what I expected - I was surprised to find that North Austin had the most crime reports. I was also surprised that although East Austin only consisted of 2 districts (compared to North and South Austin with 3), it had more crime than South Austin, and was close to North Austin crime frequency. Also, I was shocked to find that family violence was more involved in Harassment reports than any other offense type. I am curious about why there was no family violence involvement in Family Disturbance reports - it seems counter intuitive. It also makes me wonder what “Family Disturbance” refers to in Austin crime. My main takeaway from this is that theft might be exaggerated in media, and family disturbance may be overlooked - I hear a lot about break ins and thefts, making me more wary of theft-related crimes, but never hear about family disturbance rates, which are much more common. The data set was nicely organized, but many categories were very vague - such as family disturbance - and I couldn’t find any descriptors in the data set or descriptions documentation.
 
--   Appropriate titles and labels for each visualization and make sure summary statistics are\
-    reported with appropriate units. Note: It might be a good idea to number your visualizations to\
-    reference them in the Discussion
+### Discussion (Berke)
 
--   sentences interpreting each visualization with any trend/relationships and referring to\
-    appropriate summary statistics
+Criminal activity peaks at midnight with 1,477 reports and is lowest in the early morning hours, especially between 5 AM and 7 AM. Seasonal variation shows minimal fluctuation, with a monthly average of 1,495 reports, and May being the peak month. Family Disturbance (43.5%), Burglary of Vehicle (34.2%), Theft (13%), and Harassment (9.3%) are the most common offenses, with Family Disturbance peaking in May. Furthermore, Family Disturbance shows notable peaks in May, October, and January, potentially correlating with school break. Residential areas are the primary crime locations (69%), and crimes in public spaces like parking lots tend to be reported faster. These factors all contribute to a clearer understanding of Austin’s crime trends. However, the dataset has a few limitations, such as the selective filtering of categories, which might not capture the full spectrum of criminal activity in Austin. Additionally, the geographic grouping of council districts does not create proportionate regions, which could affect the accuracy of regional crime comparisons. The dataset also lacks socioeconomic factors that could offer more insight into the spatial distribution of crime for in-depth analysis. The findings largely aligned with my expectations. I anticipated that crime would peak during nighttime hours, which were confirmed. However, I was surprised by the minimal seasonal variation in crime rates, with crimes being fairly consistent year-round despite expectations of more fluctuation between seasons. Another unexpected finding was the significant difference in reporting times between public and private locations, suggesting that reporting behavior in residential areas may be influenced by factors like fear or delayed discovery. The key takeaway is that crime is geographically concentrated in North and East Austin, dominated by Family Disturbance and Vehicle Burglary offenses, and exhibits clear temporal patterns with evening to midnight hours showing peak activity. Most crimes are reported promptly (within 24 hours) and occur predominantly in residential settings. These findings determine that, to be safe, it is advised to not go outside of home after 9 pm until 5 am. When you are looking for a place to live, try to find a place in North or West Austin, usually where suburban areas are.
 
-### Discussion
+### Reflection
 
--   what did you learn from your data?
+The most challenging part of the project was managing such a large data set, and wrangling the data to fit what we were focusing on. Additionally, dividing districts into less categories (regions) was challenging as this may have affected the accuracy and generalizability of the results, since some regions involved more districts than others.
 
--   Answer your research question(s) in context, citing visualizations and summary statistics
+We learned how extensive and iterative the wrangling portion of the project was, and how to make visualizations easier to understand. We also learned the importance of setting a solid objective (e.g., research question) and identifying the relevant components we need to focus on to achieve our goal. Setting this foundation would prevent confusion later in the process.
 
--   Did the data match what you expected? Anything surprising? Anything you are curious about
+### Acknowledgements
 
--   If you were going to share your findings with the City of Austin (and you might actually do that!),\
-    what would be the main takeaway from your exploratory data analysis
+We would like to acknowledge and thank:
 
--   Anything you would like to share about the state of the dataset (e.g., inconsistency in coding for\
-    categories, typos, missing values...)
+-   Professor Guyot and TAs/UGCAs who helped us throughout this process
 
-### Reflection, Acknowledgements, and References
+-   City of Austin, Texas - Open Data Portal for providing the data Austin Police Department for collecting and providing the data
 
--   What aspect of this part of the project was the most challenging?
+Contributions:
 
--   What have you learned from the process itself?
+-   Introduction & Methods - Sophia & Berke
 
--   Include acknowledgements for any help received: who helped you with the project? Thank TAs,\
-    instructors, data owners, external resources... If a team project, use this section to report the\
-    contribution of each member: who did contribute to which part of the report)
+-    Results:
 
--   Include references: again, add the link(s) of the dataset(s), the link for the citation of a study/article\
-    for the background context, the link to a picture (if available), and any external resources.
+    -   Sophia - Which Austin region has the most crime of any type, which crime type is the most common in each region, and how common is family violence among offense types and regions
+
+    -   Berke - How does time of day, year, or location affect the frequency of criminal activity, how do offense types vary throughout the year, and how does location affect the delay between crime occurrence and report?
+
+-   Discussion, Reflection - Sophia & Berke
+
+### References
+
+Image on Slide 2: <https://www.deepsentinel.com/blogs/home-security/safest-neighborhoods-in-austin/>
+
+Austin Crime Reports Data: <https://data.austintexas.gov/Public-Safety/Crime-Reports/fdj4-gpfu/about_data>
+
+News Article:
+
+Aldis, Meredith. “Is Austin Safe? Statistics Show Crime down from 2023 but Pre-Pandemic Numbers Differ.” FOX 7 Austin, 2025, www.fox7austin.com/news/austin-safe-statistics-crime-down-pre-pandemic-numbers. Accessed 28 Mar. 2025.
